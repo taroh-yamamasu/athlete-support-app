@@ -5,7 +5,9 @@ import os
 
 # Neonから取得したConnection Stringをここに貼り付けます
 # 本番公開時は環境変数(os.environ)から読み込むように変更するのが安全です
-DB_URL = os.environ.get('DATABASE_URL', 'postgresql://neondb_owner:npg_McaCi4ygqHU0@ep-falling-sun-a41eeqyv-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require')
+DB_URL = os.environ.get('DATABASE_URL',None)
+if DB_URL is None:
+    raise ValueError("DATABASE_URL environment variable not set. This is required for deployment.")
 
 class DatabaseManager:
     _instance = None
