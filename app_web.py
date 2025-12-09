@@ -1,5 +1,3 @@
-# app_web.py の完全版コード (load_user を %s に修正済み)
-
 from flask import Flask, render_template, request, redirect, url_for, abort, flash
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash
@@ -42,7 +40,7 @@ class User(UserMixin):
 @login_manager.user_loader
 def load_user(user_id):
     user_data = db_manager._execute(
-        # ⭐ 修正箇所: ? から %s へ変更
+        # ✅ SQLプレースホルダを %s に修正
         "SELECT user_id, username, is_admin, password_hash FROM USER_MASTER WHERE user_id = %s", 
         (user_id,)
     )
@@ -58,7 +56,6 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
         
-        # database.pyの_executeを利用し、辞書形式でデータを取得
         user_data = db_manager._execute("SELECT user_id, username, password_hash, is_admin FROM USER_MASTER WHERE username = %s", (username,))
         
         if user_data and check_password_hash(user_data['password_hash'], password):
@@ -112,9 +109,13 @@ def player_summary(player_id):
 
 # --- 共通カルテ操作ロジック ---
 def prepare_karte_data(form_data):
+    # player_id を取得し、空文字の場合は None に変換する
+    player_id_value = form_data.get('player_id')
+    
     data = {
         'date': form_data.get('date'),
-        'player_id': form_data.get('player_id'),
+        # ✅ 修正: player_id が空文字の場合は None にする
+        'player_id': player_id_value if player_id_value else None,
         'tr': form_data.get('tr', ''),
         'time_loss': form_data.get('time_loss', ''),
         'time_loss_category': form_data.get('time_loss_category'),
@@ -124,7 +125,11 @@ def prepare_karte_data(form_data):
         'a_content': form_data.get('a_content'),
         'p_content': form_data.get('p_content'),
     }
-    for key in PULLDOWN_OPTIONS.keys(): data[key] = form_data.get(key)
+    for key in PULLDOWN_OPTIONS.keys(): 
+        value = form_data.get(key)
+        # age が空文字の場合、database.py側で None に変換されるため、ここではそのままにする
+        data[key] = value if value is not None else '' 
+        
     return data
 
 @app.route('/create_karte', methods=['GET', 'POST'])
@@ -147,6 +152,14 @@ def create_karte():
 
     if request.method == 'POST':
         data = prepare_karte_data(request.form)
+        
+        # ✅ 修正: player_id が None の場合（選手未選択）はエラーを返す
+        if data['player_id'] is None:
+            flash('エラー: 選手を選択してください。', 'danger')
+            # フォームデータを維持するために、karteオブジェクトとしてdataを渡す
+            return render_template('karte_form.html', player_list=player_list, PULLDOWN_OPTIONS=PULLDOWN_OPTIONS, 
+                                   TIME_LOSS_OPTIONS=TIME_LOSS_OPTIONS, karte=data, action='create', today=today)
+
         db_manager.create_karte(data)
         flash('作成しました', 'success')
         return redirect(url_for('index'))
@@ -198,6 +211,7 @@ def player_master():
             if db_manager.add_player(name):
                 flash(f'選手 {name} を登録しました', 'success')
             else:
+                # ✅ 選手登録時のフィードバックを改善
                 flash(f'エラー: 選手 {name} は既に登録されています (または登録に失敗しました)', 'danger')
         return redirect(url_for('player_master'))
     players = db_manager.get_players()

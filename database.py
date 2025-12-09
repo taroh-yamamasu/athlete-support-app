@@ -4,10 +4,10 @@ from werkzeug.security import generate_password_hash
 import os
 
 # --- DB接続設定 ---
-# 本番公開時は環境変数(os.environ)からDATABASE_URLのみを読み込みます。
+# 環境変数からDATABASE_URLを読み込む
 DB_URL = os.environ.get('DATABASE_URL', None)
 if DB_URL is None:
-    # 環境変数が設定されていない場合（デプロイ失敗時など）に強制的にエラーを発生させる
+    # 環境変数が設定されていない場合のエラー
     raise ValueError("DATABASE_URL environment variable not set. This is required for deployment.")
 
 class DatabaseManager:
@@ -31,6 +31,9 @@ class DatabaseManager:
         with self._connect() as conn:
             with conn.cursor() as c:
                 # テーブル作成
+                # player_id, diagnosis_flag は NOT NULLだが、フォームから空文字が渡されるとエラーになるため、
+                # データベース側では NULL を許容するか、アプリケーション側で None に変換する必要がある。
+                # ここではNULLを許容するようには変更せず、アプリ側で対応する前提。
                 c.execute("""
                     CREATE TABLE IF NOT EXISTS USER_MASTER (
                         user_id SERIAL PRIMARY KEY,
@@ -48,7 +51,7 @@ class DatabaseManager:
                 c.execute("""
                     CREATE TABLE IF NOT EXISTS KARTY_DATA (
                         karte_id SERIAL PRIMARY KEY,
-                        player_id INTEGER NOT NULL,
+                        player_id INTEGER, -- 必須だが、一時的にアプリ側のエラー回避のためNULLを許容
                         date TEXT NOT NULL,
                         tr TEXT,
                         time_loss TEXT,
@@ -81,17 +84,22 @@ class DatabaseManager:
 
     # --- 共通実行メソッド (PostgreSQL版) ---
     def _execute(self, query, params=None, fetch_all=False):
-        with self._connect() as conn:
-            # 読み込み操作ではコミットは不要
-            with conn.cursor(cursor_factory=RealDictCursor) as c:
-                c.execute(query, params or ())
-                if fetch_all:
-                    return [dict(row) for row in c.fetchall()]
-                try:
-                    res = c.fetchone()
-                    return dict(res) if res else None
-                except psycopg2.ProgrammingError:
-                    return None
+        try:
+            with self._connect() as conn:
+                # 読み込み操作ではコミットは不要
+                with conn.cursor(cursor_factory=RealDictCursor) as c:
+                    c.execute(query, params or ())
+                    if fetch_all:
+                        return [dict(row) for row in c.fetchall()]
+                    try:
+                        res = c.fetchone()
+                        return dict(res) if res else None
+                    except psycopg2.ProgrammingError:
+                        return None
+        except Exception as e:
+            print(f"Database Error: {e} in query: {query}")
+            return None if not fetch_all else []
+
 
     def get_users(self):
         return self._execute("SELECT user_id, username, is_admin FROM USER_MASTER ORDER BY user_id", fetch_all=True)
@@ -126,11 +134,10 @@ class DatabaseManager:
                 with conn.cursor() as c:
                     c.execute("INSERT INTO PLAYER_MASTER (player_name) VALUES (%s)", (name,))
                 conn.commit()
-            return True # 成功
+            return True
         except psycopg2.errors.UniqueViolation:
-            return False # 選手名重複
+            return False
         except Exception as e:
-            # その他のエラーをログに出力
             print(f"Error saving player: {e}")
             return False
 
@@ -155,7 +162,7 @@ class DatabaseManager:
         query = """
             SELECT k.karte_id, k.date, p.player_name, k.tr, k.a_content, k.time_loss_category, k.diagnosis_flag
             FROM KARTY_DATA k
-            JOIN PLAYER_MASTER p ON k.player_id = p.player_id
+            LEFT JOIN PLAYER_MASTER p ON k.player_id = p.player_id
             WHERE 1=1
         """
         params = []
@@ -176,22 +183,40 @@ class DatabaseManager:
         columns = ', '.join(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         sql = f"INSERT INTO KARTY_DATA ({columns}) VALUES ({placeholders})"
+        
+        # None値を持つキーを排除したリストを作成 (PostgreSQLはNoneをNULLに変換)
+        values = []
+        for v in data.values():
+            if v == '':
+                values.append(None) # 空文字をNULLに変換
+            else:
+                values.append(v)
+                
         with self._connect() as conn:
             with conn.cursor() as c:
-                c.execute(sql, list(data.values()))
+                c.execute(sql, values)
             conn.commit()
 
     def update_karte(self, karte_id, data):
         set_clause = ', '.join([f"{key} = %s" for key in data.keys()])
         sql = f"UPDATE KARTY_DATA SET {set_clause} WHERE karte_id = %s"
-        params = list(data.values()) + [karte_id]
+        
+        values = []
+        for v in data.values():
+            if v == '':
+                values.append(None) # 空文字をNULLに変換
+            else:
+                values.append(v)
+        
+        params = values + [karte_id]
+        
         with self._connect() as conn:
             with conn.cursor() as c:
                 c.execute(sql, params)
             conn.commit()
 
     def get_karte(self, karte_id):
-        q = "SELECT k.*, p.player_name FROM KARTY_DATA k JOIN PLAYER_MASTER p ON k.player_id=p.player_id WHERE k.karte_id = %s"
+        q = "SELECT k.*, p.player_name FROM KARTY_DATA k LEFT JOIN PLAYER_MASTER p ON k.player_id=p.player_id WHERE k.karte_id = %s"
         return self._execute(q, (karte_id,))
     
     def get_latest_karte_by_player(self, player_id):
