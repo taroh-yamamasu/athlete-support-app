@@ -1,152 +1,154 @@
 {% extends "base.html" %}
-{% block title %}カルテ入力{% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>{% if action == 'create' %}新規作成{% else %}編集 (ID: {{ karte.karte_id }}){% endif %}</h2>
-        
-        {% if action == 'edit' %}
-            <a href="/create_karte?copy_player_id={{ karte.player_id }}&copy_from_id={{ karte.karte_id }}" class="btn btn-outline-info">
-                <i class="fas fa-copy"></i> このカルテを再利用して新規作成
-            </a>
+<div class="container mt-4">
+    
+    <h2>{% if action == 'create' %}新規カルテ作成{% else %}カルテ編集 (ID: {{ karte.karte_id }}){% endif %}</h2>
+    <hr>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
         {% endif %}
-    </div>
+    {% endwith %}
 
-    <form method="POST">
-        <div class="row mb-3">
-            <div class="col-md-6">
-                <label class="form-label">日付</label>
-                <input type="date" class="form-control" name="date" value="{{ karte.date if karte else today }}" required>
+    <form method="POST" action="{% if action == 'create' %}{{ url_for('create_karte') }}{% else %}{{ url_for('edit_karte', karte_id=karte.karte_id) }}{% endif %}">
+        
+        <div class="row">
+            <div class="col-md-3 mb-3">
+                <label for="date" class="form-label">日付</label>
+                <input type="date" class="form-control" id="date" name="date" 
+                       value="{{ karte.date if karte and karte.date else today }}" required>
             </div>
-            <div class="col-md-6">
-                <label class="form-label">選手</label>
-                <div class="input-group">
-                    <select class="form-select" id="playerSelect" name="player_id" required>
-                        <option value="">選択してください</option>
-                        {% for p in player_list %}
-                        <option value="{{ p.player_id }}" {% if karte and karte.player_id == p.player_id %}selected{% endif %}>
-                            {{ p.player_name }}
+            
+            <div class="col-md-3 mb-3">
+                <label for="player_id" class="form-label">選手名 (必須)</label>
+                <select name="player_id" id="player_id" class="form-select" required>
+                    <option value="" {% if not karte or not karte.player_id %}selected{% endif %}>選手を選択</option>
+                    {% for player in player_list %}
+                        <option value="{{ player.player_id }}" 
+                                {% if karte and (karte.player_id | string == player.player_id | string) %}selected{% endif %}>
+                            {{ player.player_name }}
                         </option>
-                        {% endfor %}
-                    </select>
-                    {% if action == 'create' %}
-                        <button type="button" id="copyButton" class="btn btn-outline-info" style="display:none;" title="直近のカルテ内容をコピー">📋 コピー</button>
-                    {% endif %}
-                </div>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-3 mb-3">
+                <label for="tr" class="form-label">トレーナー/担当者</label>
+                <input type="text" class="form-control" id="tr" name="tr" 
+                       value="{{ karte.tr if karte and karte.tr else '' }}">
+            </div>
+
+            <div class="col-md-3 mb-3">
+                <label for="time_loss_category" class="form-label">タイムロス区分</label>
+                <select name="time_loss_category" id="time_loss_category" class="form-select">
+                    {% for tl in TIME_LOSS_OPTIONS %}
+                        <option value="{{ tl }}" 
+                                {% if karte and karte.time_loss_category == tl %}selected{% endif %}>
+                            {{ tl }}
+                        </option>
+                    {% endfor %}
+                </select>
             </div>
         </div>
 
         <div class="row mb-3">
             <div class="col-md-6">
-                <label class="form-label">TR担当</label>
-                <input type="text" class="form-control" name="tr" value="{{ karte.tr if karte else '' }}">
+                <label for="time_loss" class="form-label">タイムロス日数/期間</label>
+                <input type="text" class="form-control" id="time_loss" name="time_loss" 
+                       value="{{ karte.time_loss if karte and karte.time_loss else '' }}" placeholder="例: 3days または 2weeks">
             </div>
-            <div class="col-md-6">
-                <label class="form-label">Time Loss 備考</label>
-                <input type="text" class="form-control" name="time_loss" value="{{ karte.time_loss if karte else '' }}" placeholder="日数など補足情報があれば記入">
-            </div>
-        </div>
-
-        <div class="card mb-3 bg-light">
-            <div class="card-body">
-                <label class="form-label fw-bold">Time Loss カテゴリ</label>
-                <div>
-                    {% for option in TIME_LOSS_OPTIONS %}
-                    <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="radio" name="time_loss_category" value="{{ option }}" 
-                               {% if karte and karte.time_loss_category == option %}checked{% elif not karte and loop.first %}checked{% endif %}>
-                        <label class="form-check-label">{{ option }}</label>
-                    </div>
-                    {% endfor %}
+            <div class="col-md-6 d-flex align-items-end">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="diagnosis_flag" name="diagnosis_flag"
+                           {% if karte and karte.diagnosis_flag %}checked{% endif %}>
+                    <label class="form-check-label" for="diagnosis_flag">診断確定済</label>
                 </div>
             </div>
         </div>
 
-        <div class="mb-3">
-            <label class="form-label fw-bold bg-secondary text-white px-2 rounded">S (主観) 詳細データ</label>
-            <div class="row g-2 mb-2">
-                {% for key, item in PULLDOWN_OPTIONS.items() %}
-                <div class="col-md-4">
-                    <label class="small text-muted">{{ item.label }}</label>
-                    <select class="form-select form-select-sm" name="{{ key }}">
-                        <option value="">-</option>
-                        {% for opt in item.options %}
-                        <option value="{{ opt }}" {% if karte and karte[key] == opt %}selected{% endif %}>{{ opt }}</option>
+        <div class="mb-4">
+            <h4>SOAP 記録</h4>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="s_content" class="form-label">S (主訴)</label>
+                    <textarea class="form-control" id="s_content" name="s_content" rows="3">{{ karte.s_content if karte and karte.s_content else '' }}</textarea>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="o_content" class="form-label">O (客観的所見)</label>
+                    <textarea class="form-control" id="o_content" name="o_content" rows="3">{{ karte.o_content if karte and karte.o_content else '' }}</textarea>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="a_content" class="form-label">A (評価・考察)</label>
+                    <textarea class="form-control" id="a_content" name="a_content" rows="3">{{ karte.a_content if karte and karte.a_content else '' }}</textarea>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="p_content" class="form-label">P (計画・治療)</label>
+                    <textarea class="form-control" id="p_content" name="p_content" rows="3">{{ karte.p_content if karte and karte.p_content else '' }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <h4>傷害詳細</h4>
+            <div class="row">
+                {% for key, details in PULLDOWN_OPTIONS.items() %}
+                <div class="col-md-3 mb-3">
+                    <label for="{{ key }}" class="form-label">{{ details.label }}</label>
+                    <select name="{{ key }}" id="{{ key }}" class="form-select">
+                        <option value="">-- 選択なし --</option>
+                        {% for option in details.options %}
+                            <option value="{{ option }}" 
+                                    {% if karte and (karte[key] | string == option | string) %}selected{% endif %}>
+                                {{ option }}
+                            </option>
                         {% endfor %}
                     </select>
                 </div>
                 {% endfor %}
             </div>
-            <label class="form-label small">S 自由記述</label>
-            <textarea class="form-control" name="s_content" rows="3">{{ karte.s_content if karte else '' }}</textarea>
         </div>
-
-        <div class="mb-3">
-            <label class="form-label fw-bold bg-primary text-white px-2 rounded">O (客観)</label>
-            <textarea class="form-control" name="o_content" rows="3">{{ karte.o_content if karte else '' }}</textarea>
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label fw-bold bg-success text-white px-2 rounded">A (評価)</label>
-            <div class="form-check">
-                <input type="checkbox" class="form-check-input" name="diagnosis_flag" {% if karte and karte.diagnosis_flag %}checked{% endif %}>
-                <label class="form-check-label">医師の診断あり</label>
+        
+        <div class="d-flex justify-content-between">
+            <div>
+                <button type="submit" class="btn btn-primary me-2">保存</button>
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">キャンセル</a>
             </div>
-            <textarea class="form-control" name="a_content" rows="3">{{ karte.a_content if karte else '' }}</textarea>
+            {% if action == 'edit' %}
+                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                    削除
+                </button>
+            {% endif %}
         </div>
-
-        <div class="mb-3">
-            <label class="form-label fw-bold bg-warning text-dark px-2 rounded">P (計画)</label>
-            <textarea class="form-control" name="p_content" rows="3">{{ karte.p_content if karte else '' }}</textarea>
-        </div>
-
-        <button type="submit" class="btn btn-success">保存</button>
-        <a href="/" class="btn btn-secondary">戻る</a>
     </form>
     
     {% if action == 'edit' %}
-    <form method="POST" action="/karte/delete/{{ karte.karte_id }}" class="mt-4 text-end">
-        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('本当に削除しますか？')">🗑️ このカルテを削除</button>
-    </form>
+        <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="deleteModalLabel">削除確認</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        このカルテを本当に削除しますか？操作は取り消せません。
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                        <form method="POST" action="{{ url_for('delete_karte', karte_id=karte.karte_id) }}" style="display:inline;">
+                            <input type="hidden" name="_method" value="DELETE">
+                            <button type="submit" class="btn btn-danger">削除実行</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
     {% endif %}
+
 </div>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const playerSelect = document.getElementById('playerSelect');
-        const copyButton = document.getElementById('copyButton');
-        const currentUrl = window.location.href.split('?')[0];
-
-        // 隠しフィールドの生成（player_id保持用）
-        const hiddenPlayerIdInput = document.createElement('input');
-        hiddenPlayerIdInput.type = 'hidden';
-        hiddenPlayerIdInput.name = 'player_id';
-        document.querySelector('form').prepend(hiddenPlayerIdInput); 
-
-        function updateCopyButton() {
-            const selectedPlayerId = playerSelect.value;
-            if (copyButton) {
-                if (selectedPlayerId) {
-                    copyButton.style.display = 'block';
-                    copyButton.onclick = function() {
-                        window.location.href = currentUrl + '?copy_player_id=' + selectedPlayerId;
-                    };
-                } else {
-                    copyButton.style.display = 'none';
-                }
-            }
-        }
-
-        updateCopyButton();
-        playerSelect.addEventListener('change', updateCopyButton);
-        
-        // コピーモードのとき、隠しフィールドにIDを入れてから無効化する
-        {% if karte and request.args.get('copy_player_id') %}
-            hiddenPlayerIdInput.value = "{{ karte.player_id }}";
-            playerSelect.disabled = true;
-            playerSelect.classList.add('bg-warning', 'bg-opacity-25');
-        {% endif %}
-    });
-</script>
 {% endblock %}
