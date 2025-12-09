@@ -1,15 +1,15 @@
+# app_web.py の完全版コード (load_user を %s に修正済み)
+
 from flask import Flask, render_template, request, redirect, url_for, abort, flash
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash
 from database import DatabaseManager  
 from datetime import datetime
 import json
-import os # SECRET_KEYを環境変数から読み込むために追加
+import os 
 
 app = Flask(__name__)  
 
-# Renderの環境変数からSECRET_KEYを読み込むように修正
-# 環境変数に設定がない場合はローカルテスト用のキーを使う
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default_secret_key_for_local_test')
 
 login_manager = LoginManager()
@@ -18,7 +18,7 @@ login_manager.login_view = 'login'
 
 db_manager = DatabaseManager()
 
-# 定数
+# 定数 (省略)
 PULLDOWN_OPTIONS = {
     "activity": {"label": "試合/練習", "options": ["試合", "練習"]},
     "timing": {"label": "タイミング", "options": ["1Q", "2Q", "3Q", "4Q", "walkthrough", "indy", "kick", "team", "scrimage", "strength training", "after training", "その他"]},
@@ -42,6 +42,7 @@ class User(UserMixin):
 @login_manager.user_loader
 def load_user(user_id):
     user_data = db_manager._execute(
+        # ⭐ 修正箇所: ? から %s へ変更
         "SELECT user_id, username, is_admin, password_hash FROM USER_MASTER WHERE user_id = %s", 
         (user_id,)
     )
@@ -61,7 +62,6 @@ def login():
         user_data = db_manager._execute("SELECT user_id, username, password_hash, is_admin FROM USER_MASTER WHERE username = %s", (username,))
         
         if user_data and check_password_hash(user_data['password_hash'], password):
-            # user_dataは辞書になっているため、['key']でアクセスできる
             user = User(user_data['user_id'], user_data['username'], user_data['is_admin'])
             login_user(user) 
             return redirect(url_for('index'))
@@ -79,16 +79,13 @@ def report():
     tl_counts = db_manager.get_all_time_loss_categories()
     report_data = db_manager.get_injury_report_data()
     
-    # グラフ用データの整理
     chart_labels = []
     chart_values = []
-    # 部位ごとの集計
     site_summary = {}
     for item in report_data:
         site = item['injury_site']
         site_summary[site] = site_summary.get(site, 0) + item['count']
     
-    # 件数が多い順にソート
     sorted_sites = sorted(site_summary.items(), key=lambda x: x[1], reverse=True)
     chart_labels = [x[0] for x in sorted_sites]
     chart_values = [x[1] for x in sorted_sites]
@@ -198,7 +195,6 @@ def player_master():
     if request.method == 'POST':
         name = request.form.get('player_name', '').strip()
         if name:
-            # ⭐ add_playerの戻り値を確認し、フィードバックを追加
             if db_manager.add_player(name):
                 flash(f'選手 {name} を登録しました', 'success')
             else:
@@ -235,5 +231,4 @@ def user_master():
     return render_template('user_master.html', users=users)
 
 if __name__ == '__main__':
-    # Renderでは実行されないが、ローカルでのdebugを容易にするために修正
     app.run(debug=True)
