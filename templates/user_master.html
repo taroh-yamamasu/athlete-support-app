@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}ユーザー管理{% endblock %}
+{% block content %}
+<h2>ユーザー管理 (管理者のみ)</h2>
+
+<div class="card mb-4 p-3 shadow-sm">
+    <h5 class="card-title">新規ユーザー追加</h5>
+    <form method="POST">
+        <input type="hidden" name="action" value="add">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">ユーザー名</label>
+                <input type="text" name="username" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">パスワード</label>
+                <input type="password" name="password" class="form-control" required>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" name="is_admin">
+                    <label class="form-check-label">管理者権限</label>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-success w-100">追加</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>ユーザー名</th>
+            <th>権限</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for u in users %}
+        <tr>
+            <td>{{ u.user_id }}</td>
+            <td>{{ u.username }}</td>
+            <td>
+                {% if u.is_admin %}
+                <span class="badge bg-warning text-dark">管理者</span>
+                {% else %}
+                <span class="badge bg-secondary">一般</span>
+                {% endif %}
+            </td>
+            <td>
+                <form method="POST" style="display:inline;">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="user_id" value="{{ u.user_id }}">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('削除しますか？')">削除</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}カルテ一覧{% endblock %}
+{% block content %}
+    <h2 class="mb-3">カルテ一覧</h2>
+    
+    <div class="card mb-4">
+        <div class="card-header bg-light">検索・絞り込み</div>
+        <div class="card-body">
+            <form method="GET" action="/">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">選手名</label>
+                        <select class="form-select" name="player_id">
+                            <option value="">全選手</option>
+                            {% for p in player_list %}
+                                <option value="{{ p.player_id }}" {% if filters.player_id == p.player_id|string %}selected{% endif %}>
+                                    {{ p.player_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">期間 (開始)</label>
+                        <input type="date" class="form-control" name="start_date" value="{{ filters.start_date or '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">期間 (終了)</label>
+                        <input type="date" class="form-control" name="end_date" value="{{ filters.end_date or '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Time Loss 区分</label>
+                        <select class="form-select" name="time_loss_category">
+                            <option value="ALL">すべて</option>
+                            <option value="TIME_LOSS_ONLY" {% if filters.time_loss_category == 'TIME_LOSS_ONLY' %}selected{% endif %}>TL または RTP</option>
+                            {% for opt in TIME_LOSS_OPTIONS %}
+                                <option value="{{ opt }}" {% if filters.time_loss_category == opt %}selected{% endif %}>{{ opt }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">キーワード (S/O/A/P/TR)</label>
+                        <input type="text" class="form-control" name="keyword" value="{{ filters.keyword or '' }}" placeholder="フリーワード検索">
+                    </div>
+                    <div class="col-12 text-end">
+                        <a href="/" class="btn btn-secondary me-2">リセット</a>
+                        <button type="submit" class="btn btn-primary">検索</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <span>全 {{ data|length }} 件</span>
+        <a href="/create_karte" class="btn btn-success">＋ 新規作成</a>
+    </div>
+
+    <table class="table table-hover table-striped">
+        <thead class="table-dark">
+            <tr>
+                <th>日付</th>
+                <th>選手名</th>
+                <th>TR/試合</th>
+                <th>評価(A)</th>
+                <th>区分</th>
+                <th>診断</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in data %}
+            <tr style="cursor: pointer;" onclick="window.location='/karte/{{ row.karte_id }}';">
+                <td>{{ row.date }}</td>
+                <td>{{ row.player_name }}</td>
+                <td>{{ row.tr }}</td>
+                <td>{{ row.a_content[:20] }}...</td>
+                <td>
+                    {% if row.time_loss_category == 'TIME LOSS' %}
+                        <span class="badge bg-danger">{{ row.time_loss_category }}</span>
+                    {% elif row.time_loss_category == 'RETURN TO PLAY' %}
+                        <span class="badge bg-success">{{ row.time_loss_category }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ row.time_loss_category }}</span>
+                    {% endif %}
+                </td>
+                <td>{% if row.diagnosis_flag %}🏥{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

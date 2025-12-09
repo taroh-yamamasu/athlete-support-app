@@ -1,0 +1,4 @@
+Flask
+Flask-Login
+werkzeug
+psycopg2-binary

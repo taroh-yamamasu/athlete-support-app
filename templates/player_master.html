@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}選手マスタ{% endblock %}
+{% block content %}
+<h2>選手マスタ管理</h2>
+<div class="card mb-4 p-3">
+    <form method="POST">
+        <div class="input-group">
+            <input type="text" name="player_name" class="form-control" placeholder="新規選手名" required>
+            <button type="submit" class="btn btn-success">追加</button>
+        </div>
+    </form>
+</div>
+<table class="table table-striped">
+    <thead><tr><th>ID</th><th>名前</th><th>操作</th><th>分析</th></tr></thead>
+    <tbody>
+        {% for p in players %}
+        <tr>
+            <td>{{ p.player_id }}</td>
+            <td>
+                <form method="POST" action="/players/edit/{{ p.player_id }}" class="d-flex">
+                    <input type="text" name="player_name" value="{{ p.player_name }}" class="form-control me-2">
+                    <button type="submit" class="btn btn-primary btn-sm me-1">更新</button>
+                    <button type="submit" name="action" value="delete" class="btn btn-danger btn-sm" onclick="return confirm('削除しますか？')">削除</button>
+                </form>
+            </td>
+            <td>
+                <a href="/players/summary/{{ p.player_id }}" class="btn btn-info btn-sm">サマリー</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

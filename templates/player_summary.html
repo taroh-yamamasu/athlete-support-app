@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}選手サマリー: {{ player.player_name }}{% endblock %}
+
+{% block content %}
+<style>
+    .timeline { border-left: 3px solid #dee2e6; padding-left: 20px; position: relative; }
+    .timeline-item { position: relative; margin-bottom: 25px; }
+    .timeline-item::before {
+        content: ""; position: absolute; left: -29px; top: 5px;
+        width: 15px; height: 15px; border-radius: 50%;
+        background: #007bff; border: 3px solid #fff;
+    }
+    .timeline-item.time-loss::before { background: #dc3545; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>👤 {{ player.player_name }} 選手の分析サマリー</h2>
+    <a href="/players" class="btn btn-secondary btn-sm">選手マスタに戻る</a>
+</div>
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="card text-center bg-success text-white mb-3">
+            <div class="card-body"><h5>総記録件数</h5><h1>{{ summary.stats.total_kartes }}</h1></div>
+        </div>
+        <div class="card text-center bg-danger text-white mb-3">
+            <div class="card-body"><h5>Time Loss</h5><h1>{{ summary.time_loss_stats.tl_count }}</h1></div>
+        </div>
+    </div>
+    
+    <div class="col-md-9">
+        <h4>📅 傷害・ケア タイムライン (最新10件)</h4>
+        <div class="timeline mt-4 ms-2">
+            {% for item in summary.history %}
+            <div class="timeline-item {% if item.time_loss_category == 'TIME LOSS' %}time-loss{% endif %}">
+                <span class="text-muted small">{{ item.date }}</span>
+                <div class="card shadow-sm p-2 mt-1">
+                    <div class="d-flex justify-content-between">
+                        <strong>{{ item.injury_site or 'ケア・相談' }} / {{ item.injury_type or '-' }}</strong>
+                        <span class="badge bg-{{ 'danger' if item.time_loss_category == 'TIME LOSS' else 'secondary' }}">{{ item.time_loss_category }}</span>
+                    </div>
+                    <p class="mb-0 small text-truncate text-muted">{{ item.a_content }}</p>
+                </div>
+            </div>
+            {% endfor %}
+            {% if not summary.history %}<p class="text-muted">データがありません。</p>{% endif %}
+        </div>
+        <a href="/?player_id={{ player.player_id }}" class="btn btn-link mt-2">全件表示へ</a>
+    </div>
+</div>
+{% endblock %}
