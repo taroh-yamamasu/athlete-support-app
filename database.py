@@ -3,10 +3,11 @@ from psycopg2.extras import RealDictCursor
 from werkzeug.security import generate_password_hash
 import os
 
-# Neonから取得したConnection Stringをここに貼り付けます
-# 本番公開時は環境変数(os.environ)から読み込むように変更するのが安全です
-DB_URL = os.environ.get('DATABASE_URL',None)
+# --- DB接続設定 ---
+# 本番公開時は環境変数(os.environ)からDATABASE_URLのみを読み込みます。
+DB_URL = os.environ.get('DATABASE_URL', None)
 if DB_URL is None:
+    # 環境変数が設定されていない場合（デプロイ失敗時など）に強制的にエラーを発生させる
     raise ValueError("DATABASE_URL environment variable not set. This is required for deployment.")
 
 class DatabaseManager:
@@ -18,7 +19,8 @@ class DatabaseManager:
             try:
                 cls._instance._initialize_db()
             except Exception as e:
-                print(f"DB初期化エラー: {e}")
+                # ログに出力することでRenderのログで確認できる
+                print(f"DB初期化エラー: {e}") 
         return cls._instance
 
     def _connect(self):
@@ -28,7 +30,7 @@ class DatabaseManager:
     def _initialize_db(self):
         with self._connect() as conn:
             with conn.cursor() as c:
-                # ユーザーテーブル (PostgreSQL用の型に変更)
+                # テーブル作成
                 c.execute("""
                     CREATE TABLE IF NOT EXISTS USER_MASTER (
                         user_id SERIAL PRIMARY KEY,
@@ -37,14 +39,12 @@ class DatabaseManager:
                         is_admin INTEGER NOT NULL DEFAULT 0
                     )
                 """)
-                
                 c.execute("""
                     CREATE TABLE IF NOT EXISTS PLAYER_MASTER (
                         player_id SERIAL PRIMARY KEY,
                         player_name TEXT NOT NULL UNIQUE
                     )
                 """)
-
                 c.execute("""
                     CREATE TABLE IF NOT EXISTS KARTY_DATA (
                         karte_id SERIAL PRIMARY KEY,
@@ -71,17 +71,18 @@ class DatabaseManager:
                     )
                 """)
                 
-                # 初期ユーザー登録
+                # 初期ユーザー登録 (admin/password)
                 c.execute("SELECT user_id FROM USER_MASTER WHERE username = 'admin'")
                 if c.fetchone() is None:
                     p_hash = generate_password_hash('password')
                     c.execute("INSERT INTO USER_MASTER (username, password_hash, is_admin) VALUES (%s, %s, %s)", 
                               ('admin', p_hash, 1))
-            conn.commit()
+            conn.commit() # 初期化処理をコミット
 
     # --- 共通実行メソッド (PostgreSQL版) ---
     def _execute(self, query, params=None, fetch_all=False):
         with self._connect() as conn:
+            # 読み込み操作ではコミットは不要
             with conn.cursor(cursor_factory=RealDictCursor) as c:
                 c.execute(query, params or ())
                 if fetch_all:
@@ -125,8 +126,13 @@ class DatabaseManager:
                 with conn.cursor() as c:
                     c.execute("INSERT INTO PLAYER_MASTER (player_name) VALUES (%s)", (name,))
                 conn.commit()
+            return True # 成功
         except psycopg2.errors.UniqueViolation:
-            pass
+            return False # 選手名重複
+        except Exception as e:
+            # その他のエラーをログに出力
+            print(f"Error saving player: {e}")
+            return False
 
     def update_player_name(self, player_id, new_name):
         try:

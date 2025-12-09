@@ -1,17 +1,20 @@
 from flask import Flask, render_template, request, redirect, url_for, abort, flash
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash
-import sqlite3
-from database import DatabaseManager 
+from database import DatabaseManager  
 from datetime import datetime
 import json
+import os # SECRET_KEYを環境変数から読み込むために追加
 
-app = Flask(__name__) 
-app.config['SECRET_KEY'] = 'secret_key_change_in_production' 
+app = Flask(__name__)  
+
+# Renderの環境変数からSECRET_KEYを読み込むように修正
+# 環境変数に設定がない場合はローカルテスト用のキーを使う
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default_secret_key_for_local_test')
 
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login' 
+login_manager.login_view = 'login'  
 
 db_manager = DatabaseManager()
 
@@ -194,7 +197,12 @@ def delete_karte(karte_id):
 def player_master():
     if request.method == 'POST':
         name = request.form.get('player_name', '').strip()
-        if name: db_manager.add_player(name)
+        if name:
+            # ⭐ add_playerの戻り値を確認し、フィードバックを追加
+            if db_manager.add_player(name):
+                flash(f'選手 {name} を登録しました', 'success')
+            else:
+                flash(f'エラー: 選手 {name} は既に登録されています (または登録に失敗しました)', 'danger')
         return redirect(url_for('player_master'))
     players = db_manager.get_players()
     return render_template('player_master.html', players=players)
@@ -227,4 +235,5 @@ def user_master():
     return render_template('user_master.html', users=users)
 
 if __name__ == '__main__':
+    # Renderでは実行されないが、ローカルでのdebugを容易にするために修正
     app.run(debug=True)
