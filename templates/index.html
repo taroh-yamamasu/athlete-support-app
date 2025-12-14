@@ -72,7 +72,7 @@
                 <td>{{ row.date }}</td>
                 <td>{{ row.player_name }}</td>
                 <td>{{ row.tr }}</td>
-                <td>{{ row.a_content[:20] }}...</td>
+                <td>{{ (row.a_contentor or '')[:20] }}...</td>
                 <td>
                     {% if row.time_loss_category == 'TIME LOSS' %}
                         <span class="badge bg-danger">{{ row.time_loss_category }}</span>
