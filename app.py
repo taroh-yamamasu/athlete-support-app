@@ -5,6 +5,10 @@ from database import DatabaseManager
 from datetime import datetime
 import json
 import os 
+from dotenv import load_dotenv
+
+# .envの読み込み（ローカル開発用）
+load_dotenv()
 
 app = Flask(__name__)  
 
@@ -16,7 +20,7 @@ login_manager.login_view = 'login'
 
 db_manager = DatabaseManager()
 
-# 定数 (省略)
+# --- 定数 ---
 PULLDOWN_OPTIONS = {
     "activity": {"label": "試合/練習", "options": ["試合", "練習"]},
     "timing": {"label": "タイミング", "options": ["1Q", "2Q", "3Q", "4Q", "walkthrough", "indy", "kick", "team", "scrimage", "strength training", "after training", "その他"]},
@@ -40,7 +44,6 @@ class User(UserMixin):
 @login_manager.user_loader
 def load_user(user_id):
     user_data = db_manager._execute(
-        # ✅ SQLプレースホルダを %s に修正
         "SELECT user_id, username, is_admin, password_hash FROM USER_MASTER WHERE user_id = %s", 
         (user_id,)
     )
@@ -109,12 +112,10 @@ def player_summary(player_id):
 
 # --- 共通カルテ操作ロジック ---
 def prepare_karte_data(form_data):
-    # player_id を取得し、空文字の場合は None に変換する
     player_id_value = form_data.get('player_id')
     
     data = {
         'date': form_data.get('date'),
-        # ✅ 修正: player_id が空文字の場合は None にする
         'player_id': player_id_value if player_id_value else None,
         'tr': form_data.get('tr', ''),
         'time_loss': form_data.get('time_loss', ''),
@@ -127,7 +128,6 @@ def prepare_karte_data(form_data):
     }
     for key in PULLDOWN_OPTIONS.keys(): 
         value = form_data.get(key)
-        # age が空文字の場合、database.py側で None に変換されるため、ここではそのままにする
         data[key] = value if value is not None else '' 
         
     return data
@@ -153,10 +153,8 @@ def create_karte():
     if request.method == 'POST':
         data = prepare_karte_data(request.form)
         
-        # ✅ 修正: player_id が None の場合（選手未選択）はエラーを返す
         if data['player_id'] is None:
             flash('エラー: 選手を選択してください。', 'danger')
-            # フォームデータを維持するために、karteオブジェクトとしてdataを渡す
             return render_template('karte_form.html', player_list=player_list, PULLDOWN_OPTIONS=PULLDOWN_OPTIONS, 
                                    TIME_LOSS_OPTIONS=TIME_LOSS_OPTIONS, karte=data, action='create', today=today)
 
@@ -211,8 +209,7 @@ def player_master():
             if db_manager.add_player(name):
                 flash(f'選手 {name} を登録しました', 'success')
             else:
-                # ✅ 選手登録時のフィードバックを改善
-                flash(f'エラー: 選手 {name} は既に登録されています (または登録に失敗しました)', 'danger')
+                flash(f'エラー: 選手 {name} は既に登録されています', 'danger')
         return redirect(url_for('player_master'))
     players = db_manager.get_players()
     return render_template('player_master.html', players=players)

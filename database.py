@@ -4,11 +4,7 @@ from werkzeug.security import generate_password_hash
 import os
 
 # --- DB接続設定 ---
-# 環境変数からDATABASE_URLを読み込む
 DB_URL = os.environ.get('DATABASE_URL', None)
-if DB_URL is None:
-    # 環境変数が設定されていない場合のエラー
-    raise ValueError("DATABASE_URL environment variable not set. This is required for deployment.")
 
 class DatabaseManager:
     _instance = None
@@ -17,76 +13,79 @@ class DatabaseManager:
         if cls._instance is None:
             cls._instance = super(DatabaseManager, cls).__new__(cls)
             try:
-                cls._instance._initialize_db()
+                if DB_URL:
+                    cls._instance._initialize_db()
+                else:
+                    print("警告: DATABASE_URLが設定されていません。")
             except Exception as e:
-                # ログに出力することでRenderのログで確認できる
                 print(f"DB初期化エラー: {e}") 
         return cls._instance
 
     def _connect(self):
-        # PostgreSQLに接続
-        return psycopg2.connect(DB_URL)
+        # RenderのPostgreSQLはSSL接続を推奨するため sslmode='require' を追加
+        return psycopg2.connect(DB_URL, sslmode='require')
 
     def _initialize_db(self):
-        with self._connect() as conn:
-            with conn.cursor() as c:
-                # テーブル作成
-                # player_id, diagnosis_flag は NOT NULLだが、フォームから空文字が渡されるとエラーになるため、
-                # データベース側では NULL を許容するか、アプリケーション側で None に変換する必要がある。
-                # ここではNULLを許容するようには変更せず、アプリ側で対応する前提。
-                c.execute("""
-                    CREATE TABLE IF NOT EXISTS USER_MASTER (
-                        user_id SERIAL PRIMARY KEY,
-                        username TEXT NOT NULL UNIQUE,
-                        password_hash TEXT NOT NULL,
-                        is_admin INTEGER NOT NULL DEFAULT 0
-                    )
-                """)
-                c.execute("""
-                    CREATE TABLE IF NOT EXISTS PLAYER_MASTER (
-                        player_id SERIAL PRIMARY KEY,
-                        player_name TEXT NOT NULL UNIQUE
-                    )
-                """)
-                c.execute("""
-                    CREATE TABLE IF NOT EXISTS KARTY_DATA (
-                        karte_id SERIAL PRIMARY KEY,
-                        player_id INTEGER, -- 必須だが、一時的にアプリ側のエラー回避のためNULLを許容
-                        date TEXT NOT NULL,
-                        tr TEXT,
-                        time_loss TEXT,
-                        time_loss_category TEXT,
-                        diagnosis_flag INTEGER DEFAULT 0,
-                        s_content TEXT,
-                        o_content TEXT,
-                        a_content TEXT,
-                        p_content TEXT,
-                        activity TEXT,
-                        timing TEXT,
-                        age TEXT,
-                        status TEXT,
-                        mechanism TEXT,
-                        injury_type TEXT,
-                        injury_site TEXT,
-                        position TEXT,
-                        onset_style TEXT,
-                        FOREIGN KEY (player_id) REFERENCES PLAYER_MASTER(player_id)
-                    )
-                """)
-                
-                # 初期ユーザー登録 (admin/password)
-                c.execute("SELECT user_id FROM USER_MASTER WHERE username = 'admin'")
-                if c.fetchone() is None:
-                    p_hash = generate_password_hash('password')
-                    c.execute("INSERT INTO USER_MASTER (username, password_hash, is_admin) VALUES (%s, %s, %s)", 
-                              ('admin', p_hash, 1))
-            conn.commit() # 初期化処理をコミット
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as c:
+                    # ユーザーマスタ
+                    c.execute("""
+                        CREATE TABLE IF NOT EXISTS USER_MASTER (
+                            user_id SERIAL PRIMARY KEY,
+                            username TEXT NOT NULL UNIQUE,
+                            password_hash TEXT NOT NULL,
+                            is_admin INTEGER NOT NULL DEFAULT 0
+                        )
+                    """)
+                    # 選手マスタ
+                    c.execute("""
+                        CREATE TABLE IF NOT EXISTS PLAYER_MASTER (
+                            player_id SERIAL PRIMARY KEY,
+                            player_name TEXT NOT NULL UNIQUE
+                        )
+                    """)
+                    # カルテデータ
+                    c.execute("""
+                        CREATE TABLE IF NOT EXISTS KARTY_DATA (
+                            karte_id SERIAL PRIMARY KEY,
+                            player_id INTEGER,
+                            date TEXT NOT NULL,
+                            tr TEXT,
+                            time_loss TEXT,
+                            time_loss_category TEXT,
+                            diagnosis_flag INTEGER DEFAULT 0,
+                            s_content TEXT,
+                            o_content TEXT,
+                            a_content TEXT,
+                            p_content TEXT,
+                            activity TEXT,
+                            timing TEXT,
+                            age TEXT,
+                            status TEXT,
+                            mechanism TEXT,
+                            injury_type TEXT,
+                            injury_site TEXT,
+                            position TEXT,
+                            onset_style TEXT,
+                            FOREIGN KEY (player_id) REFERENCES PLAYER_MASTER(player_id)
+                        )
+                    """)
+                    
+                    # 初期ユーザー登録 (admin/password)
+                    c.execute("SELECT user_id FROM USER_MASTER WHERE username = 'admin'")
+                    if c.fetchone() is None:
+                        p_hash = generate_password_hash('password')
+                        c.execute("INSERT INTO USER_MASTER (username, password_hash, is_admin) VALUES (%s, %s, %s)", 
+                                  ('admin', p_hash, 1))
+                conn.commit()
+        except Exception as e:
+            print(f"テーブル作成エラー: {e}")
 
-    # --- 共通実行メソッド (PostgreSQL版) ---
+    # --- 共通実行メソッド ---
     def _execute(self, query, params=None, fetch_all=False):
         try:
             with self._connect() as conn:
-                # 読み込み操作ではコミットは不要
                 with conn.cursor(cursor_factory=RealDictCursor) as c:
                     c.execute(query, params or ())
                     if fetch_all:
@@ -100,7 +99,7 @@ class DatabaseManager:
             print(f"Database Error: {e} in query: {query}")
             return None if not fetch_all else []
 
-
+    # --- 各種メソッド（いただいたコードそのまま） ---
     def get_users(self):
         return self._execute("SELECT user_id, username, is_admin FROM USER_MASTER ORDER BY user_id", fetch_all=True)
 
@@ -184,11 +183,10 @@ class DatabaseManager:
         placeholders = ', '.join(['%s'] * len(data))
         sql = f"INSERT INTO KARTY_DATA ({columns}) VALUES ({placeholders})"
         
-        # None値を持つキーを排除したリストを作成 (PostgreSQLはNoneをNULLに変換)
         values = []
         for v in data.values():
             if v == '':
-                values.append(None) # 空文字をNULLに変換
+                values.append(None)
             else:
                 values.append(v)
                 
@@ -204,7 +202,7 @@ class DatabaseManager:
         values = []
         for v in data.values():
             if v == '':
-                values.append(None) # 空文字をNULLに変換
+                values.append(None)
             else:
                 values.append(v)
         
