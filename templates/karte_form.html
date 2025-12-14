@@ -117,8 +117,15 @@
         <div class="d-flex justify-content-between">
             <div>
                 <button type="submit" class="btn btn-primary me-2">保存</button>
-                <a href="{{ url_for('index') }}" class="btn btn-secondary">キャンセル</a>
-            </div>
+                <a href="{{ url_for('index') }}" class="btn btn-secondary me-2">キャンセル</a>
+                
+                {% if action == 'edit' %}
+                    <a href="{{ url_for('create_karte', copy_from_id=karte.karte_id) }}" class="btn btn-success">
+                        <i class="fas fa-copy"></i> この内容で新規作成
+                    </a>
+                {% endif %}
+                </div>
+            
             {% if action == 'edit' %}
                 <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
                     削除
