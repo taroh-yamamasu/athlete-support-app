@@ -3,7 +3,12 @@
 {% block content %}
 <div class="container mt-4">
     
-    <h2>{% if action == 'create' %}新規カルテ作成{% else %}カルテ編集 (ID: {{ karte.karte_id }}){% endif %}</h2>
+    <div class="d-flex justify-content-between align-items-end">
+        <h2>{% if action == 'create' %}新規カルテ作成{% else %}カルテ編集 (ID: {{ karte.karte_id }}){% endif %}</h2>
+        {% if elapsed_info %}
+            <span class="badge bg-info text-dark mb-2 p-2">{{ elapsed_info }}</span>
+        {% endif %}
+    </div>
     <hr>
     
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -16,7 +21,7 @@
 
     <form method="POST" action="{% if action == 'create' %}{{ url_for('create_karte') }}{% else %}{{ url_for('edit_karte', karte_id=karte.karte_id) }}{% endif %}">
         
-        <div class="card mb-4 border-warning">
+        <div class="card mb-4 border-warning shadow-sm">
             <div class="card-header bg-warning text-dark d-flex align-items-center">
                 <div class="form-check form-switch mb-0">
                     <input class="form-check-input" type="checkbox" role="switch" id="report_flag" name="report_flag" 
@@ -29,7 +34,7 @@
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">傷病名 (コーチ共有用)</label>
-                        <input type="text" class="form-control" name="injury_name" placeholder="例: 右ハムストリング肉離れ" value="{{ karte.injury_name if karte and karte.injury_name else '' }}">
+                        <input type="text" class="form-control" name="injury_name" placeholder="例: 右膝の捻挫" value="{{ karte.injury_name if karte and karte.injury_name else '' }}">
                     </div>
                     <div class="col-md-3 mb-3">
                         <label class="form-label fw-bold">参加可否ステータス</label>
@@ -41,16 +46,17 @@
                         </select>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <label class="form-label fw-bold">復帰・OUT予定</label>
-                        <input type="text" class="form-control" name="return_est" placeholder="例: 来週金曜まで / 当日判断" value="{{ karte.return_est if karte and karte.return_est else '' }}">
+                        <label class="form-label fw-bold">復帰/OUT予定</label>
+                        <input type="text" class="form-control" name="return_est" placeholder="例: 来週復帰予定 / 当日判断" value="{{ karte.return_est if karte and karte.return_est else '' }}">
                     </div>
                     <div class="col-12">
                         <label class="form-label fw-bold">現状・経過メモ</label>
-                        <textarea class="form-control" name="progress_note" rows="2" placeholder="例: ジョグ開始、痛みなし。コンタクトは不可。">{{ karte.progress_note if karte and karte.progress_note else '' }}</textarea>
+                        <textarea class="form-control" name="progress_note" rows="2" placeholder="例: 腫れが引いてきたためジョグ開始。">{{ karte.progress_note if karte and karte.progress_note else '' }}</textarea>
                     </div>
                 </div>
             </div>
         </div>
+
         <div class="row">
             <div class="col-md-3 mb-3">
                 <label for="date" class="form-label">日付</label>
@@ -91,16 +97,11 @@
         </div>
 
         <div class="row mb-3">
-            <div class="col-md-6">
-                <label for="time_loss" class="form-label">タイムロス日数/期間</label>
-                <input type="text" class="form-control" id="time_loss" name="time_loss" 
-                       value="{{ karte.time_loss if karte and karte.time_loss else '' }}" placeholder="例: 3days または 2weeks">
-            </div>
             <div class="col-md-6 d-flex align-items-end">
                 <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" role="switch" id="diagnosis_flag" name="diagnosis_flag"
                            {% if karte and karte.diagnosis_flag %}checked{% endif %}>
-                    <label class="form-check-label" for="diagnosis_flag">診断確定済</label>
+                    <label class="form-check-label" for="diagnosis_flag">診断確定済 (🏥)</label>
                 </div>
             </div>
         </div>
@@ -109,28 +110,28 @@
             <h4>SOAP 記録</h4>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="s_content" class="form-label">S (主訴)</label>
+                    <label for="s_content" class="form-label">S (Subjective)</label>
                     <textarea class="form-control" id="s_content" name="s_content" rows="3">{{ karte.s_content if karte and karte.s_content else '' }}</textarea>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="o_content" class="form-label">O (客観的所見)</label>
+                    <label for="o_content" class="form-label">O (Objective)</label>
                     <textarea class="form-control" id="o_content" name="o_content" rows="3">{{ karte.o_content if karte and karte.o_content else '' }}</textarea>
                 </div>
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="a_content" class="form-label">A (評価・考察)</label>
+                    <label for="a_content" class="form-label">A (Assessment)</label>
                     <textarea class="form-control" id="a_content" name="a_content" rows="3">{{ karte.a_content if karte and karte.a_content else '' }}</textarea>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label for="p_content" class="form-label">P (計画・治療)</label>
+                    <label for="p_content" class="form-label">P (Plan)</label>
                     <textarea class="form-control" id="p_content" name="p_content" rows="3">{{ karte.p_content if karte and karte.p_content else '' }}</textarea>
                 </div>
             </div>
         </div>
 
         <div class="mb-4">
-            <h4>傷害詳細</h4>
+            <h4>傷害詳細 (統計用)</h4>
             <div class="row">
                 {% for key, details in PULLDOWN_OPTIONS.items() %}
                 <div class="col-md-3 mb-3">
@@ -149,14 +150,14 @@
             </div>
         </div>
         
-        <div class="d-flex justify-content-between">
+        <div class="d-flex justify-content-between mb-5">
             <div>
-                <button type="submit" class="btn btn-primary me-2">保存</button>
-                <a href="{{ url_for('index') }}" class="btn btn-secondary me-2">キャンセル</a>
+                <button type="submit" class="btn btn-primary me-2">保存する</button>
+                <a href="{{ url_for('index') }}" class="btn btn-secondary me-2">戻る</a>
                 
                 {% if action == 'edit' %}
                     <a href="{{ url_for('create_karte', copy_from_id=karte.karte_id) }}" class="btn btn-success">
-                        <i class="fas fa-copy"></i> この内容で新規作成
+                        <i class="fas fa-copy"></i> この内容でコピー作成
                     </a>
                 {% endif %}
             </div>
@@ -168,28 +169,20 @@
         </div>
     </form>
     
-    {% if action == 'edit' %}
-        <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="deleteModalLabel">削除確認</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        このカルテを本当に削除しますか？操作は取り消せません。
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                        <form method="POST" action="{{ url_for('delete_karte', karte_id=karte.karte_id) }}" style="display:inline;">
-                            <input type="hidden" name="_method" value="DELETE">
-                            <button type="submit" class="btn btn-danger">削除実行</button>
-                        </form>
-                    </div>
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">削除確認</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">このカルテを削除してもよろしいですか？</div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <form method="POST" action="{{ url_for('delete_karte', karte_id=karte.karte_id if karte else 0) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-danger">削除実行</button>
+                    </form>
                 </div>
             </div>
         </div>
-    {% endif %}
+    </div>
 
 </div>
 
@@ -197,13 +190,10 @@
     function toggleReportFields() {
         var checkbox = document.getElementById('report_flag');
         var fields = document.getElementById('report_fields');
-        if (checkbox.checked) {
-            fields.style.display = 'block';
-        } else {
-            fields.style.display = 'none';
+        if (checkbox) {
+            fields.style.display = checkbox.checked ? 'block' : 'none';
         }
     }
-    // ページ読み込み時に初期状態をセット
-    window.onload = toggleReportFields;
+    document.addEventListener('DOMContentLoaded', toggleReportFields);
 </script>
 {% endblock %}

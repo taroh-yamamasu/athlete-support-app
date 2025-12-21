@@ -221,31 +221,34 @@ def coach_login():
             
     return render_template('coach_login.html')
 
+# --- coach_view 関数を修正 ---
 @app.route('/coach_view')
 def coach_view():
-    """コーチ共有レポート表示（並び替え機能付き）"""
-    # トレーナーログイン中、または合言葉認証済みの場合のみアクセス可
     if not current_user.is_authenticated and not session.get('coach_authenticated'):
         return redirect(url_for('coach_login'))
         
     reports = db_manager.get_coach_reports()
     
-    # ★Proモード改善：並び替えロジックの強化
-    # 優先順位マップ（数字が小さいほど上に表示）
-    # Constクラスの値を使用することで、文字列変更時のバグを防ぐ
-    priority_map = {
-        Const.STATUS_OUT: 1,
-        Const.STATUS_GTD: 2,
-        Const.STATUS_RESTRICTION: 3,
-        Const.STATUS_IN: 4
-    }
+    # 並び替え用マップ
+    priority_map = {Const.STATUS_OUT: 1, Const.STATUS_GTD: 2, Const.STATUS_RESTRICTION: 3, Const.STATUS_IN: 4}
     
+    today_dt = datetime.now()
+    
+    for row in reports:
+        # ★経過日数の計算
+        injury_date_str = db_manager.get_latest_injury_date(row['player_id'], row['date'])
+        if injury_date_str:
+            inj_dt = datetime.strptime(injury_date_str, '%Y-%m-%d')
+            cur_dt = datetime.strptime(row['date'], '%Y-%m-%d')
+            diff_days = (cur_dt - inj_dt).days
+            row['elapsed_days'] = f"Day {diff_days} (W{diff_days//7 + 1}D{diff_days%7})"
+        else:
+            row['elapsed_days'] = "-"
+
     if reports:
-        # get()メソッドの第二引数(99)で、想定外のステータスが来てもエラーにならず一番下に表示する
         reports.sort(key=lambda x: priority_map.get(x.get('participation_status'), 99))
     
-    today = datetime.now().strftime('%Y-%m-%d')
-    return render_template('coach_view.html', reports=reports, today=today)
+    return render_template('coach_view.html', reports=reports, today=today_dt.strftime('%Y-%m-%d'))
 
 # --- カルテ操作 (CRUD) ---
 
@@ -294,11 +297,18 @@ def create_karte():
 @login_required 
 def edit_karte(karte_id):
     karte = db_manager.get_karte(karte_id)
-    if not karte:
-        abort(404)
-        
-    player_list = db_manager.get_players()
+    if not karte: abort(404)
     
+    # ★経過日数の計算を追加
+    injury_date_str = db_manager.get_latest_injury_date(karte['player_id'], karte['date'])
+    elapsed_info = ""
+    if injury_date_str:
+        inj_dt = datetime.strptime(injury_date_str, '%Y-%m-%d')
+        cur_dt = datetime.strptime(karte['date'], '%Y-%m-%d')
+        diff_days = (cur_dt - inj_dt).days
+        elapsed_info = f"受傷後 {diff_days}日目 (Week {diff_days//7 + 1}, Day {diff_days%7})"
+
+    player_list = db_manager.get_players()
     if request.method == 'POST':
         data = prepare_karte_data(request.form)
         db_manager.update_karte(karte_id, data)
@@ -309,7 +319,7 @@ def edit_karte(karte_id):
                            PULLDOWN_OPTIONS=PULLDOWN_OPTIONS, 
                            TIME_LOSS_OPTIONS=TIME_LOSS_OPTIONS, 
                            PARTICIPATION_STATUS_OPTIONS=PARTICIPATION_STATUS_OPTIONS,
-                           action='edit')
+                           action='edit', elapsed_info=elapsed_info)
 
 @app.route('/')
 @login_required 

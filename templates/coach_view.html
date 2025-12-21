@@ -18,9 +18,9 @@
                 <tr>
                     <th style="width: 15%;">選手名</th>
                     <th style="width: 15%;">ステータス</th>
-                    <th style="width: 20%;">傷病名</th>
+                    <th style="width: 10%;">経過</th> <th style="width: 15%;">傷病名</th>
                     <th style="width: 15%;">復帰/OUT予定</th>
-                    <th style="width: 35%;">経過・メモ</th>
+                    <th style="width: 30%;">経過・メモ</th>
                 </tr>
             </thead>
             <tbody>
@@ -45,13 +45,15 @@
                             <span class="badge bg-secondary">-</span>
                         {% endif %}
                     </td>
+                    <td class="small fw-bold text-secondary">{{ row.elapsed_days }}</td>
+                    
                     <td>{{ row.injury_name }}</td>
                     <td>{{ row.return_est }}</td>
                     <td class="small">{{ row.progress_note }}</td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="5" class="text-center py-4 text-muted">現在、共有事項のある選手はいません。</td>
+                    <td colspan="6" class="text-center py-4 text-muted">現在、共有事項のある選手はいません。</td>
                 </tr>
                 {% endfor %}
             </tbody>
