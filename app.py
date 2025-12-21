@@ -34,6 +34,9 @@ PULLDOWN_OPTIONS = {
 }
 TIME_LOSS_OPTIONS = ['NON TIME LOSS', 'NEW/RE-INJURY', 'TIME LOSS', 'RETURN TO PLAY']
 
+# ★新機能用の参加区分オプション
+PARTICIPATION_STATUS_OPTIONS = ['IN (参加)', 'RESTRICTION (制限付)', 'OUT (不参加)', 'GTD (当日判断)']
+
 # --- Flask-Login User ---
 class User(UserMixin):
     def __init__(self, user_id, username, is_admin):
@@ -52,6 +55,19 @@ def load_user(user_id):
     return None
 
 # --- Routes ---
+
+# ★重要：データベース更新用URL（一度だけアクセスして実行する）
+@app.route('/sys_update_db')
+@login_required
+def sys_update_db():
+    if not current_user.is_admin:
+        return "管理者権限が必要です。", 403
+    
+    if db_manager.migrate_schema():
+        return "データベースの更新（カラム追加）が完了しました！トップページに戻ってください。"
+    else:
+        return "データベース更新に失敗しました。ログを確認してください。"
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated: return redirect(url_for('index'))
@@ -110,6 +126,19 @@ def player_summary(player_id):
     summary = db_manager.get_player_summary_data(player_id)
     return render_template('player_summary.html', player=player, summary=summary)
 
+# --- ★新機能：コーチ用レポート画面 ---
+@app.route('/coach_view')
+def coach_view():
+    # ログインしていなくても見れるようにするか、あるいは共有用パスワードをかけるかは要検討
+    # 現状はログイン必須にしておきます
+    if not current_user.is_authenticated:
+        return redirect(url_for('login'))
+        
+    reports = db_manager.get_coach_reports()
+    today = datetime.now().strftime('%Y-%m-%d')
+    return render_template('coach_view.html', reports=reports, today=today)
+
+
 # --- 共通カルテ操作ロジック ---
 def prepare_karte_data(form_data):
     player_id_value = form_data.get('player_id')
@@ -125,6 +154,13 @@ def prepare_karte_data(form_data):
         'o_content': form_data.get('o_content'),
         'a_content': form_data.get('a_content'),
         'p_content': form_data.get('p_content'),
+        
+        # ★新機能：コーチ報告用データ
+        'report_flag': 1 if form_data.get('report_flag') == 'on' else 0,
+        'injury_name': form_data.get('injury_name', ''),
+        'participation_status': form_data.get('participation_status', ''),
+        'return_est': form_data.get('return_est', ''),
+        'progress_note': form_data.get('progress_note', '')
     }
     for key in PULLDOWN_OPTIONS.keys(): 
         value = form_data.get(key)
@@ -156,14 +192,18 @@ def create_karte():
         if data['player_id'] is None:
             flash('エラー: 選手を選択してください。', 'danger')
             return render_template('karte_form.html', player_list=player_list, PULLDOWN_OPTIONS=PULLDOWN_OPTIONS, 
-                                   TIME_LOSS_OPTIONS=TIME_LOSS_OPTIONS, karte=data, action='create', today=today)
+                                   TIME_LOSS_OPTIONS=TIME_LOSS_OPTIONS, 
+                                   PARTICIPATION_STATUS_OPTIONS=PARTICIPATION_STATUS_OPTIONS, # ★追加
+                                   karte=data, action='create', today=today)
 
         db_manager.create_karte(data)
         flash('作成しました', 'success')
         return redirect(url_for('index'))
         
     return render_template('karte_form.html', player_list=player_list, PULLDOWN_OPTIONS=PULLDOWN_OPTIONS, 
-                           TIME_LOSS_OPTIONS=TIME_LOSS_OPTIONS, karte=copied_karte, action='create', today=today)
+                           TIME_LOSS_OPTIONS=TIME_LOSS_OPTIONS, 
+                           PARTICIPATION_STATUS_OPTIONS=PARTICIPATION_STATUS_OPTIONS, # ★追加
+                           karte=copied_karte, action='create', today=today)
 
 @app.route('/karte/<int:karte_id>', methods=['GET', 'POST']) 
 @login_required 
@@ -177,7 +217,10 @@ def edit_karte(karte_id):
         flash('更新しました', 'success')
         return redirect(url_for('edit_karte', karte_id=karte_id))
     return render_template('karte_form.html', karte=karte, player_list=player_list, 
-                           PULLDOWN_OPTIONS=PULLDOWN_OPTIONS, TIME_LOSS_OPTIONS=TIME_LOSS_OPTIONS, action='edit')
+                           PULLDOWN_OPTIONS=PULLDOWN_OPTIONS, 
+                           TIME_LOSS_OPTIONS=TIME_LOSS_OPTIONS, 
+                           PARTICIPATION_STATUS_OPTIONS=PARTICIPATION_STATUS_OPTIONS, # ★追加
+                           action='edit')
 
 @app.route('/')
 @login_required 

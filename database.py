@@ -22,7 +22,6 @@ class DatabaseManager:
         return cls._instance
 
     def _connect(self):
-        # RenderのPostgreSQLはSSL接続を推奨するため sslmode='require' を追加
         return psycopg2.connect(DB_URL, sslmode='require')
 
     def _initialize_db(self):
@@ -82,6 +81,28 @@ class DatabaseManager:
         except Exception as e:
             print(f"テーブル作成エラー: {e}")
 
+    # --- ★重要：データベース構造更新用メソッド（新機能のために追加） ---
+    def migrate_schema(self):
+        """既存のテーブルにコーチ報告用の新しいカラムを追加する"""
+        alter_statements = [
+            "ALTER TABLE KARTY_DATA ADD COLUMN IF NOT EXISTS report_flag INTEGER DEFAULT 0",
+            "ALTER TABLE KARTY_DATA ADD COLUMN IF NOT EXISTS injury_name TEXT",
+            "ALTER TABLE KARTY_DATA ADD COLUMN IF NOT EXISTS participation_status TEXT",
+            "ALTER TABLE KARTY_DATA ADD COLUMN IF NOT EXISTS return_est TEXT",
+            "ALTER TABLE KARTY_DATA ADD COLUMN IF NOT EXISTS progress_note TEXT"
+        ]
+        try:
+            with self._connect() as conn:
+                with conn.cursor() as c:
+                    for sql in alter_statements:
+                        c.execute(sql)
+                conn.commit()
+            print("スキーマ更新完了")
+            return True
+        except Exception as e:
+            print(f"スキーマ更新エラー: {e}")
+            return False
+
     # --- 共通実行メソッド ---
     def _execute(self, query, params=None, fetch_all=False):
         try:
@@ -99,7 +120,7 @@ class DatabaseManager:
             print(f"Database Error: {e} in query: {query}")
             return None if not fetch_all else []
 
-    # --- 各種メソッド（いただいたコードそのまま） ---
+    # --- 以下、既存メソッド ---
     def get_users(self):
         return self._execute("SELECT user_id, username, is_admin FROM USER_MASTER ORDER BY user_id", fetch_all=True)
 
@@ -159,7 +180,7 @@ class DatabaseManager:
 
     def search_karty(self, filters):
         query = """
-            SELECT k.karte_id, k.date, p.player_name, k.tr, k.a_content, k.time_loss_category, k.diagnosis_flag
+            SELECT k.karte_id, k.date, p.player_name, k.tr, k.a_content, k.time_loss_category, k.diagnosis_flag, k.report_flag
             FROM KARTY_DATA k
             LEFT JOIN PLAYER_MASTER p ON k.player_id = p.player_id
             WHERE 1=1
@@ -240,3 +261,19 @@ class DatabaseManager:
         tl_stats = self._execute("SELECT COUNT(CASE WHEN time_loss_category = 'TIME LOSS' THEN 1 END) as tl_count, COUNT(CASE WHEN time_loss_category = 'RETURN TO PLAY' THEN 1 END) as rtp_count FROM KARTY_DATA WHERE player_id = %s", (player_id,))
         history = self._execute("SELECT date, injury_site, injury_type, a_content, time_loss_category FROM KARTY_DATA WHERE player_id = %s ORDER BY date DESC LIMIT 10", (player_id,), fetch_all=True)
         return {'stats': stats, 'time_loss_stats': tl_stats, 'history': history}
+
+    # --- ★新機能：コーチ用レポート取得 ---
+    def get_coach_reports(self):
+        # 各選手の「最新の」報告付きカルテを取得するクエリ
+        # PostgreSQLの DISTINCT ON を使用して選手ごとの最新1件を取得
+        query = """
+            SELECT DISTINCT ON (k.player_id)
+                k.karte_id, k.date, p.player_name, 
+                k.injury_name, k.participation_status, k.return_est, k.progress_note,
+                k.time_loss_category
+            FROM KARTY_DATA k
+            LEFT JOIN PLAYER_MASTER p ON k.player_id = p.player_id
+            WHERE k.report_flag = 1
+            ORDER BY k.player_id, k.date DESC, k.karte_id DESC
+        """
+        return self._execute(query, fetch_all=True)
