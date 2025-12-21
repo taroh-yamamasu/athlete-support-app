@@ -36,6 +36,7 @@
                     {% if current_user.is_authenticated %}
                         <li class="nav-item"><a class="nav-link" href="/"><i class="fas fa-list"></i> カルテ一覧</a></li>
                         <li class="nav-item"><a class="nav-link" href="/create_karte"><i class="fas fa-plus-square"></i> 新規作成</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/coach_view"><i class="fas fa-clipboard-check"></i> コーチ共有</a></li>
                         <li class="nav-item"><a class="nav-link" href="/players"><i class="fas fa-users"></i> 選手マスタ</a></li>
                         <li class="nav-item"><a class="nav-link" href="/report"><i class="fas fa-chart-bar"></i> 分析レポート</a></li>
                         {% if current_user.is_admin %}

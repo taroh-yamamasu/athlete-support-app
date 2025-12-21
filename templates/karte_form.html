@@ -16,6 +16,41 @@
 
     <form method="POST" action="{% if action == 'create' %}{{ url_for('create_karte') }}{% else %}{{ url_for('edit_karte', karte_id=karte.karte_id) }}{% endif %}">
         
+        <div class="card mb-4 border-warning">
+            <div class="card-header bg-warning text-dark d-flex align-items-center">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" role="switch" id="report_flag" name="report_flag" 
+                           onchange="toggleReportFields()" {% if karte and karte.report_flag %}checked{% endif %}>
+                    <label class="form-check-label fw-bold" for="report_flag">コーチへの傷病報告・参加可否共有を行う</label>
+                </div>
+            </div>
+            <div class="card-body bg-light" id="report_fields" style="display: none;">
+                <p class="text-muted small mb-3">※ここに記入した内容は「コーチ閲覧用画面」に表示されます。専門用語は避け、わかりやすい言葉で記入してください。</p>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">傷病名 (コーチ共有用)</label>
+                        <input type="text" class="form-control" name="injury_name" placeholder="例: 右ハムストリング肉離れ" value="{{ karte.injury_name if karte and karte.injury_name else '' }}">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label fw-bold">参加可否ステータス</label>
+                        <select name="participation_status" class="form-select">
+                            <option value="">-- 選択 --</option>
+                            {% for status in PARTICIPATION_STATUS_OPTIONS %}
+                                <option value="{{ status }}" {% if karte and karte.participation_status == status %}selected{% endif %}>{{ status }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label fw-bold">復帰・OUT予定</label>
+                        <input type="text" class="form-control" name="return_est" placeholder="例: 来週金曜まで / 当日判断" value="{{ karte.return_est if karte and karte.return_est else '' }}">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-bold">現状・経過メモ</label>
+                        <textarea class="form-control" name="progress_note" rows="2" placeholder="例: ジョグ開始、痛みなし。コンタクトは不可。">{{ karte.progress_note if karte and karte.progress_note else '' }}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="row">
             <div class="col-md-3 mb-3">
                 <label for="date" class="form-label">日付</label>
@@ -124,8 +159,7 @@
                         <i class="fas fa-copy"></i> この内容で新規作成
                     </a>
                 {% endif %}
-                </div>
-            
+            </div>
             {% if action == 'edit' %}
                 <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
                     削除
@@ -158,4 +192,18 @@
     {% endif %}
 
 </div>
+
+<script>
+    function toggleReportFields() {
+        var checkbox = document.getElementById('report_flag');
+        var fields = document.getElementById('report_fields');
+        if (checkbox.checked) {
+            fields.style.display = 'block';
+        } else {
+            fields.style.display = 'none';
+        }
+    }
+    // ページ読み込み時に初期状態をセット
+    window.onload = toggleReportFields;
+</script>
 {% endblock %}

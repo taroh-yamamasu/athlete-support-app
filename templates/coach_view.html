@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}コーチ共有用レポート{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold"><i class="fas fa-clipboard-list"></i> 傷病・参加可否レポート</h2>
+        <span class="text-muted">{{ today }} 現在</span>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> このリストは、傷病報告として登録された選手の最新状況のみを表示しています。
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle shadow-sm">
+            <thead class="table-dark">
+                <tr>
+                    <th style="width: 15%;">選手名</th>
+                    <th style="width: 15%;">ステータス</th>
+                    <th style="width: 20%;">傷病名</th>
+                    <th style="width: 15%;">復帰/OUT予定</th>
+                    <th style="width: 35%;">経過・メモ</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in reports %}
+                <tr class="
+                    {% if 'OUT' in (row.participation_status or '') %}table-danger
+                    {% elif 'RESTRICTION' in (row.participation_status or '') %}table-warning
+                    {% elif 'GTD' in (row.participation_status or '') %}table-info
+                    {% endif %}
+                ">
+                    <td class="fw-bold">{{ row.player_name }}</td>
+                    <td>
+                        {% if 'OUT' in (row.participation_status or '') %}
+                            <span class="badge bg-danger">OUT (不参加)</span>
+                        {% elif 'RESTRICTION' in (row.participation_status or '') %}
+                            <span class="badge bg-warning text-dark">制限付参加</span>
+                        {% elif 'GTD' in (row.participation_status or '') %}
+                            <span class="badge bg-info text-dark">当日判断</span>
+                        {% elif 'IN' in (row.participation_status or '') %}
+                            <span class="badge bg-success">IN (参加)</span>
+                        {% else %}
+                            <span class="badge bg-secondary">-</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ row.injury_name }}</td>
+                    <td>{{ row.return_est }}</td>
+                    <td class="small">{{ row.progress_note }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center py-4 text-muted">現在、共有事項のある選手はいません。</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="mt-4 text-end">
+        <button class="btn btn-outline-secondary" onclick="window.print()"><i class="fas fa-print"></i> 印刷 / PDF保存</button>
+    </div>
+</div>
+{% endblock %}
