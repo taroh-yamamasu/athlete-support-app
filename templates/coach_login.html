@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}コーチログイン{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-header text-center bg-dark text-white">
+                <i class="fas fa-lock"></i> コーチ共有ページ
+            </div>
+            <div class="card-body">
+                <p class="text-muted text-center small mb-3">チームの合言葉を入力してください</p>
+                <form method="POST">
+                    <div class="mb-3">
+                        <input type="password" name="password" class="form-control text-center" placeholder="合言葉" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">閲覧する</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

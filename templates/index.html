@@ -60,29 +60,25 @@
             <tr>
                 <th>日付</th>
                 <th>選手名</th>
-                <th>TR/試合</th>
-                <th>評価(A)</th>
+                <th class="d-none d-md-table-cell">TR/試合</th> <th>内容</th>
                 <th>区分</th>
-                <th>診断</th>
             </tr>
         </thead>
         <tbody>
             {% for row in data %}
             <tr style="cursor: pointer;" onclick="window.location='/karte/{{ row.karte_id }}';">
-                <td>{{ row.date }}</td>
-                <td>{{ row.player_name }}</td>
-                <td>{{ row.tr }}</td>
-                <td>{{ (row.a_contentor or '')[:20] }}...</td>
+                <td class="small">{{ row.date[5:] }}</td> <td class="fw-bold">{{ row.player_name }}</td>
+                <td class="d-none d-md-table-cell">{{ row.tr }}</td>
+                <td class="small">{{ (row.a_content or '')[:12] }}..</td>
                 <td>
                     {% if row.time_loss_category == 'TIME LOSS' %}
-                        <span class="badge bg-danger">{{ row.time_loss_category }}</span>
+                        <span class="badge bg-danger">TL</span>
                     {% elif row.time_loss_category == 'RETURN TO PLAY' %}
-                        <span class="badge bg-success">{{ row.time_loss_category }}</span>
+                        <span class="badge bg-success">RTP</span>
                     {% else %}
-                        <span class="badge bg-secondary">{{ row.time_loss_category }}</span>
+                        <span class="badge bg-secondary">NL</span>
                     {% endif %}
                 </td>
-                <td>{% if row.diagnosis_flag %}🏥{% endif %}</td>
             </tr>
             {% endfor %}
         </tbody>

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, abort, flash
+from flask import Flask, render_template, request, redirect, url_for, abort, flash, session
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash
 from database import DatabaseManager  
@@ -13,6 +13,9 @@ load_dotenv()
 app = Flask(__name__)  
 
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default_secret_key_for_local_test')
+
+# ★ コーチ用の共通パスワード（合言葉）
+COACH_SHARED_PASSWORD = "pirates"
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -33,8 +36,6 @@ PULLDOWN_OPTIONS = {
     "onset_style": {"label": "発祥様式", "options": ["Acute sudden", "Repetitive sudden", "Repetitive gradual"]},
 }
 TIME_LOSS_OPTIONS = ['NON TIME LOSS', 'NEW/RE-INJURY', 'TIME LOSS', 'RETURN TO PLAY']
-
-# ★新機能用の参加区分オプション
 PARTICIPATION_STATUS_OPTIONS = ['IN (参加)', 'RESTRICTION (制限付)', 'OUT (不参加)', 'GTD (当日判断)']
 
 # --- Flask-Login User ---
@@ -56,7 +57,6 @@ def load_user(user_id):
 
 # --- Routes ---
 
-# ★重要：データベース更新用URL（一度だけアクセスして実行する）
 @app.route('/sys_update_db')
 @login_required
 def sys_update_db():
@@ -87,6 +87,8 @@ def login():
 @app.route('/logout')
 def logout():
     logout_user()
+    # コーチ用の認証もクリアする場合
+    session.pop('coach_authenticated', None)
     return redirect(url_for('login'))
 
 @app.route('/report')
@@ -126,13 +128,29 @@ def player_summary(player_id):
     summary = db_manager.get_player_summary_data(player_id)
     return render_template('player_summary.html', player=player, summary=summary)
 
-# --- ★新機能：コーチ用レポート画面 ---
+# --- ★新機能：コーチ用ログイン & 閲覧画面 ---
+
+@app.route('/coach_login', methods=['GET', 'POST'])
+def coach_login():
+    # すでに認証済みなら閲覧ページへ
+    if session.get('coach_authenticated'):
+        return redirect(url_for('coach_view'))
+        
+    if request.method == 'POST':
+        password = request.form.get('password')
+        if password == COACH_SHARED_PASSWORD:
+            session['coach_authenticated'] = True
+            return redirect(url_for('coach_view'))
+        else:
+            flash('合言葉が違います', 'danger')
+            
+    return render_template('coach_login.html')
+
 @app.route('/coach_view')
 def coach_view():
-    # ログインしていなくても見れるようにするか、あるいは共有用パスワードをかけるかは要検討
-    # 現状はログイン必須にしておきます
-    if not current_user.is_authenticated:
-        return redirect(url_for('login'))
+    # トレーナーとしてログインしているか、またはコーチ用合言葉認証が済んでいるか
+    if not current_user.is_authenticated and not session.get('coach_authenticated'):
+        return redirect(url_for('coach_login'))
         
     reports = db_manager.get_coach_reports()
     today = datetime.now().strftime('%Y-%m-%d')
@@ -154,8 +172,6 @@ def prepare_karte_data(form_data):
         'o_content': form_data.get('o_content'),
         'a_content': form_data.get('a_content'),
         'p_content': form_data.get('p_content'),
-        
-        # ★新機能：コーチ報告用データ
         'report_flag': 1 if form_data.get('report_flag') == 'on' else 0,
         'injury_name': form_data.get('injury_name', ''),
         'participation_status': form_data.get('participation_status', ''),
@@ -193,7 +209,7 @@ def create_karte():
             flash('エラー: 選手を選択してください。', 'danger')
             return render_template('karte_form.html', player_list=player_list, PULLDOWN_OPTIONS=PULLDOWN_OPTIONS, 
                                    TIME_LOSS_OPTIONS=TIME_LOSS_OPTIONS, 
-                                   PARTICIPATION_STATUS_OPTIONS=PARTICIPATION_STATUS_OPTIONS, # ★追加
+                                   PARTICIPATION_STATUS_OPTIONS=PARTICIPATION_STATUS_OPTIONS,
                                    karte=data, action='create', today=today)
 
         db_manager.create_karte(data)
@@ -202,7 +218,7 @@ def create_karte():
         
     return render_template('karte_form.html', player_list=player_list, PULLDOWN_OPTIONS=PULLDOWN_OPTIONS, 
                            TIME_LOSS_OPTIONS=TIME_LOSS_OPTIONS, 
-                           PARTICIPATION_STATUS_OPTIONS=PARTICIPATION_STATUS_OPTIONS, # ★追加
+                           PARTICIPATION_STATUS_OPTIONS=PARTICIPATION_STATUS_OPTIONS,
                            karte=copied_karte, action='create', today=today)
 
 @app.route('/karte/<int:karte_id>', methods=['GET', 'POST']) 
@@ -219,7 +235,7 @@ def edit_karte(karte_id):
     return render_template('karte_form.html', karte=karte, player_list=player_list, 
                            PULLDOWN_OPTIONS=PULLDOWN_OPTIONS, 
                            TIME_LOSS_OPTIONS=TIME_LOSS_OPTIONS, 
-                           PARTICIPATION_STATUS_OPTIONS=PARTICIPATION_STATUS_OPTIONS, # ★追加
+                           PARTICIPATION_STATUS_OPTIONS=PARTICIPATION_STATUS_OPTIONS,
                            action='edit')
 
 @app.route('/')
