@@ -5,9 +5,6 @@
     
     <div class="d-flex justify-content-between align-items-end">
         <h2>{% if action == 'create' %}新規カルテ作成{% else %}カルテ編集 (ID: {{ karte.karte_id }}){% endif %}</h2>
-        {% if elapsed_info %}
-            <span class="badge bg-info text-dark mb-2 p-2">{{ elapsed_info }}</span>
-        {% endif %}
     </div>
     <hr>
     
@@ -67,10 +64,10 @@
             <div class="col-md-3 mb-3">
                 <label for="player_id" class="form-label">選手名 (必須)</label>
                 <select name="player_id" id="player_id" class="form-select" required>
-                    <option value="" {% if not karte or not karte.player_id %}selected{% endif %}>選手を選択</option>
+                    <option value="">選手を選択</option>
                     {% for player in player_list %}
                         <option value="{{ player.player_id }}" 
-                                {% if karte and (karte.player_id | string == player.player_id | string) %}selected{% endif %}>
+                                {% if karte and karte.player_id|string == player.player_id|string %}selected{% endif %}>
                             {{ player.player_name }}
                         </option>
                     {% endfor %}
@@ -140,7 +137,7 @@
                         <option value="">-- 選択なし --</option>
                         {% for option in details.options %}
                             <option value="{{ option }}" 
-                                    {% if karte and (karte[key] | string == option | string) %}selected{% endif %}>
+                                    {% if karte and karte[key]|string == option|string %}selected{% endif %}>
                                 {{ option }}
                             </option>
                         {% endfor %}
@@ -161,7 +158,8 @@
                     </a>
                 {% endif %}
             </div>
-            {% if action == 'edit' %}
+            
+            {% if action == 'edit' and karte.karte_id %}
                 <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
                     削除
                 </button>
@@ -169,20 +167,27 @@
         </div>
     </form>
     
+    {% if action == 'edit' and karte.karte_id %}
     <div class="modal fade" id="deleteModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title">削除確認</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                <div class="modal-body">このカルテを削除してもよろしいですか？</div>
+                <div class="modal-header">
+                    <h5 class="modal-title">削除確認</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    このカルテを削除してもよろしいですか？この操作は取り消せません。
+                </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <form method="POST" action="{{ url_for('delete_karte', karte_id=karte.karte_id if karte else 0) }}" style="display:inline;">
+                    <form method="POST" action="{{ url_for('delete_karte', karte_id=karte.karte_id) }}" style="display:inline;">
                         <button type="submit" class="btn btn-danger">削除実行</button>
                     </form>
                 </div>
             </div>
         </div>
     </div>
+    {% endif %}
 
 </div>
 
@@ -190,7 +195,7 @@
     function toggleReportFields() {
         var checkbox = document.getElementById('report_flag');
         var fields = document.getElementById('report_fields');
-        if (checkbox) {
+        if (checkbox && fields) {
             fields.style.display = checkbox.checked ? 'block' : 'none';
         }
     }
