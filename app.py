@@ -1,7 +1,7 @@
 """
 Pirates Trainer App - Main Application
 Backend Logic (Flask)
-Optimized for Robustness, Sorting, and Rehabilitation Progress Tracking
+Fixed: Karte Reuse (Copy) Functionality
 """
 import os
 import json
@@ -13,16 +13,12 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import check_password_hash
 from dotenv import load_dotenv
 
-# データベースマネージャーのインポート
 from database import DatabaseManager
 
-# --- 設定と初期化 ---
 load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default_secret_key_for_local_test')
-
-# コーチ用合言葉（デフォルト：pirates）
 COACH_SHARED_PASSWORD = os.environ.get('COACH_PASSWORD', 'pirates')
 
 login_manager = LoginManager()
@@ -31,7 +27,6 @@ login_manager.login_view = 'login'
 
 db_manager = DatabaseManager()
 
-# --- 定数定義 ---
 class Const:
     STATUS_IN = 'IN (参加)'
     STATUS_RESTRICTION = 'RESTRICTION (制限付)'
@@ -43,7 +38,6 @@ class Const:
     TL_LOSS = 'TIME LOSS'
     TL_RTP = 'RETURN TO PLAY'
 
-# プルダウン選択肢
 PULLDOWN_OPTIONS = {
     "activity": {"label": "試合/練習", "options": ["試合", "練習"]},
     "timing": {"label": "タイミング", "options": ["1Q", "2Q", "3Q", "4Q", "walkthrough", "indy", "kick", "team", "scrimage", "strength training", "after training", "その他"]},
@@ -59,7 +53,6 @@ PULLDOWN_OPTIONS = {
 TIME_LOSS_OPTIONS = [Const.TL_NONE, Const.TL_NEW, Const.TL_LOSS, Const.TL_RTP]
 PARTICIPATION_STATUS_OPTIONS = [Const.STATUS_IN, Const.STATUS_RESTRICTION, Const.STATUS_OUT, Const.STATUS_GTD]
 
-# --- ユーザーモデル ---
 class User(UserMixin):
     def __init__(self, user_id, username, is_admin):
         self.id = user_id
@@ -73,9 +66,8 @@ def load_user(user_id):
         return User(user_data['user_id'], user_data['username'], user_data['is_admin'])
     return None
 
-# --- ヘルパー関数 ---
 def prepare_karte_data(form_data: Dict[str, Any]) -> Dict[str, Any]:
-    """フォーム入力をDB保存用形式に変換（タイムロス日数は削除）"""
+    """フォーム入力をDB保存用形式に変換"""
     data = {
         'date': form_data.get('date'),
         'player_id': form_data.get('player_id') if form_data.get('player_id') else None,
@@ -105,7 +97,7 @@ def sys_update_db():
     if db_manager.migrate_schema():
         flash('データベースの更新が完了しました。', 'success')
         return redirect(url_for('index'))
-    return "更新に失敗しました。ログを確認してください。", 500
+    return "更新失敗", 500
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -126,8 +118,6 @@ def logout():
     session.pop('coach_authenticated', None)
     return redirect(url_for('login'))
 
-# --- コーチ共有機能 ---
-
 @app.route('/coach_login', methods=['GET', 'POST'])
 def coach_login():
     if session.get('coach_authenticated'): return redirect(url_for('coach_view'))
@@ -144,17 +134,13 @@ def coach_view():
         return redirect(url_for('coach_login'))
     
     reports = db_manager.get_coach_reports()
-    
-    # 優先順位: OUT(1) -> GTD(2) -> RESTRICTION(3) -> IN(4)
     priority_map = {Const.STATUS_OUT: 1, Const.STATUS_GTD: 2, Const.STATUS_RESTRICTION: 3, Const.STATUS_IN: 4}
     
     if reports:
         for row in reports:
-            # 経過日数の計算
             p_id = row.get('player_id')
             c_date = row.get('date')
             injury_date_str = db_manager.get_latest_injury_date(p_id, c_date)
-            
             if injury_date_str:
                 inj_dt = datetime.strptime(injury_date_str, '%Y-%m-%d')
                 cur_dt = datetime.strptime(c_date, '%Y-%m-%d')
@@ -162,13 +148,9 @@ def coach_view():
                 row['elapsed_days'] = f"Day {diff} (W{diff//7 + 1}D{diff%7})"
             else:
                 row['elapsed_days'] = "-"
-        
-        # 安全なソート（想定外のステータスは99で末尾へ）
         reports.sort(key=lambda x: priority_map.get(x.get('participation_status'), 99))
     
     return render_template('coach_view.html', reports=reports, today=datetime.now().strftime('%Y-%m-%d'))
-
-# --- カルテ操作 ---
 
 @app.route('/')
 @login_required
@@ -188,20 +170,31 @@ def index():
 @login_required
 def create_karte():
     if request.method == 'POST':
-        db_manager.create_karte(prepare_karte_data(request.form))
+        data = prepare_karte_data(request.form)
+        if not data.get('player_id'):
+            flash('エラー: 選手を選択してください。', 'danger')
+            return render_template('karte_form.html', player_list=db_manager.get_players(),
+                                   PULLDOWN_OPTIONS=PULLDOWN_OPTIONS, TIME_LOSS_OPTIONS=TIME_LOSS_OPTIONS,
+                                   PARTICIPATION_STATUS_OPTIONS=PARTICIPATION_STATUS_OPTIONS,
+                                   karte=data, action='create', today=datetime.now().strftime('%Y-%m-%d'))
+        
+        db_manager.create_karte(data)
         flash('カルテを作成しました', 'success')
         return redirect(url_for('index'))
     
-    # コピー作成の処理
+    # 再利用作成（コピー）の処理
     copied_karte = None
-    if request.args.get('copy_from_id'):
-        copied_karte = db_manager.get_karte(request.args.get('copy_from_id'))
-    elif request.args.get('copy_player_id'):
-        copied_karte = db_manager.get_latest_karte_by_player(request.args.get('copy_player_id'))
+    copy_from_id = request.args.get('copy_from_id')
+    copy_player_id = request.args.get('copy_player_id')
+
+    if copy_from_id:
+        copied_karte = db_manager.get_karte(copy_from_id)
+    elif copy_player_id:
+        copied_karte = db_manager.get_latest_karte_by_player(copy_player_id)
     
     if copied_karte:
         copied_karte['date'] = datetime.now().strftime('%Y-%m-%d')
-        copied_karte['karte_id'] = None
+        copied_karte['karte_id'] = None # IDを消去して新規扱いにする
 
     return render_template('karte_form.html', player_list=db_manager.get_players(),
                            PULLDOWN_OPTIONS=PULLDOWN_OPTIONS, TIME_LOSS_OPTIONS=TIME_LOSS_OPTIONS,
@@ -229,8 +222,7 @@ def delete_karte(karte_id):
     flash('カルテを削除しました', 'info')
     return redirect(url_for('index'))
 
-# --- 分析・マスタ ---
-
+# 他のマスタ管理、レポート、サマリーなどのルート（変更なし）
 @app.route('/report')
 @login_required
 def report():
@@ -239,18 +231,13 @@ def report():
     for item in report_data:
         site = item.get('injury_site', '不明')
         site_summary[site] = site_summary.get(site, 0) + item.get('count', 0)
-    
     sorted_sites = sorted(site_summary.items(), key=lambda x: x[1], reverse=True)
-    
     grouped_data = {}
     for item in report_data:
         cat = item.get('time_loss_category', 'OTHER')
         if cat not in grouped_data: grouped_data[cat] = []
         grouped_data[cat].append(item)
-        
-    return render_template('report.html', 
-                           tl_counts=db_manager.get_all_time_loss_categories(),
-                           grouped_data=grouped_data,
+    return render_template('report.html', tl_counts=db_manager.get_all_time_loss_categories(), grouped_data=grouped_data,
                            chart_labels=json.dumps([x[0] for x in sorted_sites]),
                            chart_values=json.dumps([x[1] for x in sorted_sites]))
 
@@ -266,8 +253,7 @@ def player_master():
 @app.route('/players/edit/<int:player_id>', methods=['POST'])
 @login_required
 def edit_player(player_id):
-    if request.form.get('action') == 'delete':
-        db_manager.delete_player(player_id)
+    if request.form.get('action') == 'delete': db_manager.delete_player(player_id)
     else:
         new_name = request.form.get('player_name', '').strip()
         if new_name: db_manager.update_player_name(player_id, new_name)
@@ -279,10 +265,8 @@ def user_master():
     if not current_user.is_admin: abort(403)
     if request.method == 'POST':
         action = request.form.get('action')
-        if action == 'add':
-            db_manager.add_user(request.form.get('username'), request.form.get('password'), 1 if request.form.get('is_admin') else 0)
-        elif action == 'delete':
-            db_manager.delete_user(request.form.get('user_id'))
+        if action == 'add': db_manager.add_user(request.form.get('username'), request.form.get('password'), 1 if request.form.get('is_admin') else 0)
+        elif action == 'delete': db_manager.delete_user(request.form.get('user_id'))
         return redirect(url_for('user_master'))
     return render_template('user_master.html', users=db_manager.get_users())
 
