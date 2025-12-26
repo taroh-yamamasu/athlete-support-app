@@ -3,73 +3,203 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Pirates App">
     
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon.png') }}">
     <link rel="icon" href="{{ url_for('static', filename='icon.png') }}">
     
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <title>{% block title %}Pirates Trainer App{% endblock %}</title>
 
     <style>
-        /* スマホでの改行・見やすさ対策 */
-        body { font-size: 14px; line-height: 1.4; background-color: #f8f9fa; }
-        .container { padding-left: 10px; padding-right: 10px; }
-        .table th, .table td { padding: 8px 4px; vertical-align: middle; }
-        .btn { padding: 6px 10px; font-size: 13px; }
+        /* --- 🎨 Pirates Theme Design System --- */
         
-        /* カード内の余白を詰めて情報を凝縮 */
-        .card-body { padding: 12px; }
-        .row > * { padding-right: 5px; padding-left: 5px; }
-        
-        /* ナビゲーションの調整 */
-        .navbar-brand { font-weight: bold; font-size: 1.1rem; }
-        .nav-link { font-size: 0.9rem; }
+        :root {
+            --pirates-navy: #0c2340;   /* チームカラー（濃紺） */
+            --pirates-gold: #c5b358;   /* アクセント（ゴールド風） */
+            --bg-color: #f4f6f9;       /* 背景色（薄いグレー） */
+            --text-main: #2c3e50;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-size: 15px;
+            line-height: 1.6;
+            padding-bottom: 60px;
+        }
+
+        /* ナビゲーションバー */
+        .navbar {
+            background-color: var(--pirates-navy) !important;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.2rem;
+            letter-spacing: 0.05em;
+        }
+        .nav-link {
+            font-weight: 500;
+        }
+
+        /* カードデザイン */
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            background-color: #fff;
+        }
+        .card-header {
+            background-color: #fff;
+            border-bottom: 1px solid #f0f0f0;
+            font-weight: 700;
+            border-radius: 12px 12px 0 0 !important;
+            padding: 15px 20px;
+        }
+        .card-body {
+            padding: 20px;
+        }
+
+        /* ボタンデザイン */
+        .btn {
+            border-radius: 8px;
+            font-weight: 600;
+            padding: 8px 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+        }
+        .btn:active {
+            transform: translateY(1px);
+            box-shadow: none;
+        }
+        .btn-primary {
+            background-color: var(--pirates-navy);
+            border-color: var(--pirates-navy);
+        }
+        .btn-primary:hover {
+            background-color: #163a63;
+        }
+
+        /* フォーム入力 */
+        .form-control, .form-select {
+            border-radius: 8px;
+            border: 1px solid #ced4da;
+            padding: 10px 12px;
+            background-color: #fdfdfd;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--pirates-navy);
+            box-shadow: 0 0 0 0.25rem rgba(12, 35, 64, 0.15);
+        }
+        label {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #555;
+            margin-bottom: 6px;
+        }
+
+        /* テーブルデザイン */
+        .table {
+            margin-bottom: 0;
+        }
+        .table th {
+            font-weight: 600;
+            color: #666;
+            border-top: none;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background-color: #f8f9fa;
+        }
+        .table td {
+            vertical-align: middle;
+            padding: 12px 8px;
+        }
+        .table-hover tbody tr:hover {
+            background-color: #f1f7ff;
+        }
+
+        /* バッジ */
+        .badge {
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+        }
+
+        /* スマホ調整 */
+        @media (max-width: 768px) {
+            .container { padding-left: 12px; padding-right: 12px; }
+            h2 { font-size: 1.5rem; }
+            .btn { width: 100%; margin-bottom: 10px; }
+            .d-flex.justify-content-between.mb-5 { flex-direction: column; }
+            .d-flex.justify-content-between.mb-5 > div { width: 100%; }
+        }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+    <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container-fluid">
-            <a class="navbar-brand" href="/"><i class="fas fa-anchor"></i> Pirates Trainer App</a>
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                <img src="{{ url_for('static', filename='icon.png') }}" alt="Pirates Logo" height="30" class="me-2">
+                Pirates Trainer
+            </a>
             
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01">
                 <span class="navbar-toggler-icon"></span>
             </button>
 
             <div class="collapse navbar-collapse" id="navbarColor01">
-                <ul class="navbar-nav me-auto">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     {% if current_user.is_authenticated %}
-                        <li class="nav-item"><a class="nav-link" href="/"><i class="fas fa-list"></i> カルテ一覧</a></li>
-                        <li class="nav-item"><a class="nav-link" href="/create_karte"><i class="fas fa-plus-square"></i> 新規作成</a></li>
-                        <li class="nav-item"><a class="nav-link" href="/coach_view"><i class="fas fa-clipboard-check"></i> コーチ共有</a></li>
-                        <li class="nav-item"><a class="nav-link" href="/players"><i class="fas fa-users"></i> 選手マスタ</a></li>
-                        <li class="nav-item"><a class="nav-link" href="/report"><i class="fas fa-chart-bar"></i> 分析レポート</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/"><i class="fas fa-list me-1"></i> カルテ一覧</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/create_karte"><i class="fas fa-plus-circle me-1"></i> 新規作成</a></li>
+                        <li class="nav-item"><a class="nav-link text-warning" href="/coach_view"><i class="fas fa-clipboard-check me-1"></i> コーチ共有</a></li>
                         
-                        {% if current_user.is_admin %}
-                        <li class="nav-item"><a class="nav-link text-warning" href="/users"><i class="fas fa-user-shield"></i> ユーザー管理</a></li>
-                        {% endif %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"><i class="fas fa-database me-1"></i> データ管理</a>
+                            <ul class="dropdown-menu border-0 shadow">
+                                <li><a class="dropdown-item" href="/players">選手マスタ</a></li>
+                                <li><a class="dropdown-item" href="/report">分析レポート</a></li>
+                                {% if current_user.is_admin %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger" href="/users">ユーザー管理</a></li>
+                                {% endif %}
+                            </ul>
+                        </li>
                     {% endif %}
                 </ul>
                 
                 <ul class="navbar-nav ms-auto">
                     {% if current_user.is_authenticated %}
-                        <li class="nav-item"><span class="nav-link text-light small"><i class="fas fa-user-circle"></i> {{ current_user.username }}</span></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> ログアウト</a></li>
+                        <li class="nav-item d-flex align-items-center text-white-50 me-3 small">
+                            <i class="fas fa-user-circle me-2"></i> {{ current_user.username }}
+                        </li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i></a></li>
                     {% endif %}
                 </ul>
             </div>
         </div>
     </nav>
 
-    <div class="container mt-3">
+    <div class="container mt-4">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show">
-                        {{ message }}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm border-0">
+                        <i class="fas fa-info-circle me-2"></i> {{ message }}
                         <button type="button" class="btn-close" data-bs-alert="dismiss"></button>
                     </div>
                 {% endfor %}
